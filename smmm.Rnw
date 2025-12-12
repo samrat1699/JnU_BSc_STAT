@@ -1,0 +1,310 @@
+\documentclass{article}
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+
+#----Mackham Gompertz method to solve the mathematics----
+
+<<echo=TRUE, results=tex>>=
+A <- -0.00077443
+B <- 0.00254
+C <- 1.0577
+x <- c(seq(0.1, 1000, by = 0.1))
+
+survival <- exp((-A*x) + (B/log(C)) * (1-C^x))
+hazard <- A + B * (C^x)
+
+df <- data.frame(x = x, surv=survival, haz= hazard)
+
+library(ggplot2)
+library(patchwork)
+
+p1 <- ggplot(df, aes(x = x, y = surv)) + geom_line(color = "lightblue", linewidth = 1.5) +  labs(title = "Survival function curve", y = "S(x)") + theme_minimal(base_size = 14)
+
+p2 <- ggplot(df, aes(x = x, y = haz)) + geom_line(color = "lightblue", linewidth = 1.5) +  labs(title = "Hazard function curve", y = "Mu(x)") + theme_minimal(base_size = 14)
+
+p1 + p2
+
+@
+
+## ---Gompertz model---
+
+<<echo=TRUE, results=tex>>=
+
+B <- 0.0056
+C <- 1.03
+
+u <- runif(1000, 0, 1)
+x <- log(1 - (log(C)/B)*log(1-u)) / log(C)
+#x <- log(1 - (log(C)/A)*log(1-u)) / log(C)
+
+survival <- exp(B/log(C) * (1-C^x))
+#survival <- exp(A/log(C) * (1-C^x))
+hazard <- B * C^x
+
+df <- data.frame(x = x, surv = survival, haz = hazard)
+
+p1 <- ggplot(df, aes(x = x, y = surv)) + geom_line(color="lightblue", linewidth=1.5) + labs(title = "Survival curve", y = "S(x)")+theme_minimal(base_size = 12)
+
+p2 <- ggplot(df, aes(x = x, y = haz)) + geom_line(color="lightblue", linewidth=1.5) + labs(title = "Hazard curve", y = "Mu(x)")+theme_minimal(base_size = 12)
+
+p1 + p2
+
+@
+
+#---- Annuity immediate----
+
+<<echo=TRUE, results=tex>>=
+i <- c(seq(0.05, 0.10, by=0.01), 0.105, 0.11, 0.115, 0.12)
+n <- 1:15
+
+pv <- outer(n, i, function(n, r) (1-(1+r)^(-n)) / r)
+
+fv <- outer(n, i, function(n, r) ((1+r)^n - 1) / r)
+
+dimnames(pv) <- dimnames(fv) <- list(paste0("n=", n), paste0("i=", i))
+cat("Present value annuity immediate")
+print(round(pv, 3))
+cat("Future value annuity immediate")
+print(round(fv, 3))
+@
+
+#----Annuity due----
+<<echo=TRUE, results=tex>>=
+i <- c(seq(0.05, 0.10, 0.01), 0.105, 0.11, 0.115, 0.12)
+n <- 1:15
+
+pv <- outer(n, i, function(n, r) ((1 - (1 + r)^(-n)) / r) * (1 + r))
+fv <- outer(n, i, function(n, r) (((1 + r) ^n -1) / r) * (1 + r))
+
+dimnames(pv)<- dimnames(fv)<- list(paste0("n=", n), paste0("i=", i))
+
+cat("Present value annuity-due")
+print(round(pv, 3))
+cat("Future value annuity-due")
+print(round(fv, 3))
+@
+
+#-----life table-----
+
+<<echo=TRUE, results=tex>>=
+# Define age range
+age <- 30:45  
+lx <- c(10000, 9965, 9927, 9885, 9839, 9789, 9754, 9673, 9607, 9534,
+        9529, 9379, 9314, 9224, 9172, 9115)
+dx <- c(lx[-length(lx)] - lx[-1], 90)
+qx <- c(dx[-length(dx)] / lx[-length(lx)], NA)
+px <- 1 - qx
+Lx <- c((lx[-length(lx)] + lx[-1]) / 2, 0)
+Tx <- rev(cumsum(rev(Lx)))
+ex <- round(Tx / lx, 2)
+life_table <- data.frame(
+  age = age,
+  lx = lx,
+  dx = dx,
+  qx = round(qx, 4),
+  px = round(px, 4),
+  Lx = round(Lx, 1),
+  Tx = round(Tx, 1),
+  ex = ex
+)
+print(life_table)
+
+@
+
+
+
+<<>>=
+age <- 30:45  
+lx <- c(10000, 9965, 9927, 9885, 9839, 9789, 9754, 9673, 9607, 9534,
+        9529, 9379, 9314, 9224, 9172, 9115)
+dx <- c(lx[-length(lx)] - lx[-1], 90)
+qx <- c(dx[-length(dx)] / lx[-length(lx)], NA)
+px <- 1 - qx
+Lx <- c((lx[-length(lx)] + lx[-1]) / 2, 0)
+Tx <- rev(cumsum(rev(Lx)))
+ex <- round(Tx/lx, 2)
+life_table <- data.frame(
+  age = age,
+  lx = lx,
+  dx = dx, 
+  qx = round(qx, 4),
+  px = round(px, 4),
+  Lx = round(Lx, 1),
+  Tx = round(Tx, 1),
+  ex = ex
+)
+print(life_table)
+@
+
+
+<<>>=
+
+set.seed(123)
+
+# Target: standard normal (unnormalized)
+target <- function(x) exp(-x^2 / 2)
+
+# Initialize
+n <- 1000
+x <- numeric(n)
+x[1] <- 0
+delta <- 2  # Proposal width
+
+# Metropolis algorithm
+for (i in 2:n) {
+  proposal <- runif(1, x[i-1] - delta/2, x[i-1] + delta/2)
+  r <- target(proposal) / target(x[i-1])
+  if (runif(1) < r) {
+    x[i] <- proposal
+  } else {
+    x[i] <- x[i-1]
+  }
+}
+
+# Plot results
+hist(x, probability = TRUE, col = "lightblue", main = "Metropolis Samples")
+curve(dnorm(x), col = "red", lwd = 2, add = TRUE)
+
+
+
+
+set.seed(123)
+
+# Number of samples
+n <- 1000
+
+# Generate n/2 pairs (each gives 2 normals)
+u1 <- runif(n / 2)
+u2 <- runif(n / 2)
+
+# Box-Muller transform
+z1 <- sqrt(-2 * log(u1)) * cos(2 * pi * u2)
+z2 <- sqrt(-2 * log(u1)) * sin(2 * pi * u2)
+
+# Combine into one sample of size n
+samples <- c(z1, z2)
+
+# Plot
+hist(samples, probability = TRUE, col = "lightblue", main = "Standard Normal via Box-Muller")
+curve(dnorm(x), col = "red", lwd = 2, add = TRUE)
+
+
+
+
+
+
+set.seed(123)
+
+# Desired sample size
+n <- 50
+
+# Generate n/2 pairs of uniform random numbers
+u1 <- runif(n / 2)
+u2 <- runif(n / 2)
+
+# Box-Muller transform for standard normal (mean = 0, sd = 1)
+z1 <- sqrt(-2 * log(u1)) * cos(2 * pi * u2)
+z2 <- sqrt(-2 * log(u1)) * sin(2 * pi * u2)
+
+# Combine z1 and z2 into one standard normal sample
+z <- c(z1, z2)
+
+# Convert to N(5, 2^2)
+x <- 5 + 2 * z
+
+# Print or inspect the sample
+print(x)
+
+# Optional: histogram
+hist(x, col = "lightblue", breaks = 10, main = "Sample from N(5, 4)", xlab = "Value")
+curve(dnorm(x, mean = 5, sd = 2), col = "red", lwd = 2, add = TRUE)
+
+rnormal <- function(size, Mean, Sd){
+  L <- size / 2
+  x <- rep(0, size)
+  for (i in 1:L){
+    u1 <- runif(1,0,1)
+    u2 <- runif(1, 0, 1)
+    x[2*i-1]<-Mean + Sd*sqrt(-2*log(u1))*cos(2*pi*u2)
+    x[2*i]<-Mean+Sd*sqrt(-2*log(u1))*sin(2*pi*u2)
+  }
+  x
+}
+rnormal(100, 5, 4)
+
+
+rnormal <- function(size, Mean, Sd){
+  L <- size / 2
+  x <- rep(0, size)
+  for (i in 1:L){
+    u1 <- runif(1, 0, 1)
+    u2 <- runif(1, 0, 1)
+    x[2*i - 1] <- Mean + Sd * sqrt(-2 * log(u1)) * cos(2 * pi * u2)
+    x[2*i]     <- Mean + Sd * sqrt(-2 * log(u1)) * sin(2 * pi * u2)
+  }
+  x
+}
+
+# Generate 100 samples from N(5, 4^2)
+samples <- rnormal(100, 5, 4)
+
+# Plot
+hist(samples, col = "lightblue", breaks = 20, probability = TRUE,
+     main = "Random Samples from N(5, 16)", xlab = "Value")
+curve(dnorm(x, mean = 5, sd = 4), col = "red", lwd = 2, add = TRUE)
+
+
+
+
+rnormal <- function(size, Mean, Sd) {
+  if (size %% 2 != 0) size <- size + 1  # Make size even
+  u1 <- runif(size / 2)
+  u2 <- runif(size / 2)
+  
+  z1 <- sqrt(-2 * log(u1)) * cos(2 * pi * u2)
+  z2 <- sqrt(-2 * log(u1)) * sin(2 * pi * u2)
+  
+  z <- c(z1, z2)
+  x <- Mean + Sd * z
+  x[1:size]  # Return only the requested number of samples
+}
+
+# Example: generate 50 samples from N(5, 4^2)
+samples <- rnormal(50, 5, 4)
+print(samples)
+rnormal <- function(n, mean, sd) {
+  u1 <- runif(n / 2)
+  u2 <- runif(n / 2)
+  
+  z1 <- sqrt(-2 * log(u1)) * cos(2 * pi * u2)
+  z2 <- sqrt(-2 * log(u1)) * sin(2 * pi * u2)
+  
+  z <- c(z1, z2)
+  x <- mean + sd * z
+  return(x)
+}
+
+# Example: generate 50 samples from N(5, 4)
+rnormal(50, 5, 2)
+
+
+
+
+simulate_geometric <- function(n, p) {
+  u <- runif(n)  # Uniform(0,1) random numbers
+  floor(log(1 - u) / log(1 - p))  # Inverse transform
+}
+
+# Example: simulate 1000 values from Geometric(0.25)
+set.seed(123)
+samples <- simulate_geometric(1000, 0.25)
+
+# View and plot
+head(samples)
+hist(samples, breaks = 50, col = "lightblue",
+     main = "Geometric(0.25) - Simulated via Inverse Transform",
+     xlab = "Failures Before First Success")
+
+@
+\end{document}

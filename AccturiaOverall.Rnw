@@ -1,0 +1,257 @@
+\documentclass{article}
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+
+#---------------- 1st version Annuity immediate------
+<<echo=TRUE, results = verbatim>>=
+
+#i <- seq(0.05, 0.10, by= 0.01)
+i <- c(seq(0.05, 0.10, by = 0.01), 0.105, 0.11, 0.115, 0.12)
+n <- 1:15
+
+PV <- outer(n, i, function(n, r) (1-(1+r)^(-n)) / r)
+FV <- outer(n, i, function(n, r) ((1+r)^n-1) / r)
+
+dimnames(PV) <- dimnames(FV) <- list(paste0("n=", n), paste0("i=", i))
+
+cat("Present Value matrix (Annuity Immdetaite):\n")
+print(round(PV, 3))
+
+cat("Future Value matrix (Annuity Immdetaite):\n")
+print(round(FV, 3))
+@
+
+#--------SecondVersion annuty immediate---------
+
+<<echo = TRUE, results=tex>>=
+
+i <- c(seq(0.05, 0.10, by= 0.01),  0.105, 0.11, 0.115, 0.12)
+n <- 1:20
+
+PV <- outer(i, n, function(r, n) (1-(1+r)^(-n)) / r)
+FV <- outer(i, n, function(r, n) ((1+r)^n-1) / r)
+
+dimnames(PV) <- dimnames(FV) <- list(paste0("i=", i), paste0("n=", n))
+
+cat("Present Value matrix (Annuity Immdetaite):\n")
+print(round(PV, 3))
+
+cat("Future Value matrix (Annuity Immdetaite):\n")
+print(round(FV, 3))
+
+@
+
+#---------------- 1st version Annuity due------
+<<>>=
+
+i <- c(seq(0.05, 0.10, by= 0.01), 0.105, 0.11, 0.115, 0.12)
+n <- 1:15
+
+PV <- outer(n, i, function(n, r) ((1 - (1 + r)^(-n)) / r) * (1 + r))
+FV <- outer(n, i, function(n, r) ((1 + r)^n - 1) / r * (1 + r))
+
+dimnames(PV) <- dimnames(FV) <- list(paste0("n=", n), paste0("i=", i))
+
+cat("Present Value matrix (Annuity due):\n")
+print(round(PV, 3))
+
+cat("Future Value matrix (Annuity due):\n")
+print(round(FV, 3))
+
+@
+#---------------- 2nd version Annuity due------
+
+<<echo=TRUE, results=tex>>=
+i <- seq(0.01, 0.10, by= 0.01)
+n <- 1:20
+
+PV <- outer(i, n, function(r, n) ((1 - (1 + r)^(-n)) / r) * (1 + r))
+FV <- outer(i, n, function(r, n) ((1 + r)^n - 1) / r * (1 + r))
+
+dimnames(PV) <- dimnames(FV) <- list(paste0("i=", i), paste0("n=", n))
+
+cat("Present Value matrix (Annuity due):\n")
+print(round(PV, 3))
+
+cat("Future Value matrix (Annuity due):\n")
+print(round(FV, 3))
+@
+
+#####------------Life table when given age and lx-------
+<<echo=TRUE, results=tex>>=
+# Input data
+age <- 30:45
+lx <- c(10000, 9965, 9927, 9885, 9839, 9789, 9754, 9673, 9607, 9534,
+        9529, 9379, 9314, 9224, 9172, 9115)
+
+# Calculate dx, qx, px, Lx, Tx, ex
+dx <- c(diff(lx) * -1, 90)
+qx <- c(dx[-length(dx)] / lx[-length(lx)], NA)
+px <- 1 - qx
+Lx <- c((lx[-length(lx)] + lx[-1]) / 2, 0)
+Tx <- rev(cumsum(rev(Lx)))
+ex <- round(Tx / lx, 2)
+
+# Create table
+life_table <- data.frame(age, lx, dx, qx = round(qx, 4), px = round(px, 4),
+                         Lx = round(Lx, 1), Tx = round(Tx, 1), ex)
+
+# View result
+print(life_table)
+ 
+@
+
+#-----lifeTable when age and dx are given-----------
+
+<<echo=TRUE, results=tex>>=
+
+# Inputs
+age <- 30:45
+dx <- c(35, 38, 42, 46, 50, 35, 81,66, 73, 5, 150, 65, 90, 52, 57, 90)
+l0 <- 10000
+
+# Step 1: Compute lx (number alive at beginning of each age)
+lx <- c(l0, l0 - cumsum(dx))
+
+# Step 2: Compute qx and px
+qx <- dx / lx[-length(lx)]
+px <- 1 - qx
+
+# Step 3: Compute Lx (average alive in the interval)
+Lx <- (lx[-length(lx)] + lx[-1]) / 2
+
+# Step 4: Compute Tx (total future person-years)
+Tx <- rev(cumsum(rev(Lx)))
+
+# Step 5: Compute ex (life expectancy at age x)
+ex <- round(Tx / lx[-length(lx)], 2)
+
+# Step 6: Assemble life table
+life_table <- data.frame(
+  age = age,
+  lx = lx[-length(lx)],
+  dx = dx,
+  qx = round(qx, 4),
+  px = round(px, 4),
+  Lx = round(Lx, 1),
+  Tx = round(Tx, 1),
+  ex = ex
+)
+
+# Show the life table
+print(life_table)
+
+@
+
+
+
+#-----------Gompertz methods to the learn----
+<<echo=TRUE, results=tex>>=
+# Parameters
+B <- 0.0056
+C <- 1.03
+
+# Generate 1000 uniform random values between 0 and 1
+U <- runif(1000, 0, 1)
+
+# Gompertz distribution inverse CDF to get age values (x)
+x <- (1 / log(C)) * log(1 - (log(C) / B) * log(1 - U))
+
+# Survival function S(x)
+survg <- exp((-B / log(C)) * (C^x - 1))
+
+# Hazard function h(x)
+hazard <- B * (C^x)
+
+# Plot Survival vs Age
+plot(x, survg,
+     xlab = "Age", ylab = "Survival Probability", main = "Gompertz Survival Function")
+
+# Optional: Plot Hazard vs Age
+plot(x, hazard, 
+     xlab = "Age", ylab = "Hazard", main = "Gompertz Hazard Function")
+
+
+
+@
+
+
+
+<<echo=TRUE, results=tex>>=
+# Load required libraries
+library(ggplot2)
+library(patchwork)
+B <- 0.00003025
+C <- 1.0498
+U <- runif(1000, 0, 1)
+x <- (1 / log(C)) * log(1 - (log(C) / B) * log(1 - U))
+sur <- exp((-B / log(C)) * (C^x - 1))
+mu <- B * (C^x)
+df <- data.frame(x = x, sur = sur, mu = mu)
+p1 <- ggplot(df, aes(x = x, y = mu)) +
+    geom_line(color = "red") +
+    labs(title = "Hazard Function", x = "Age", y = "h(x)") +
+    theme_minimal()
+p2 <- ggplot(df, aes(x = x, y = sur)) +
+    geom_line(color = "blue") +
+    labs(title = "Survival Function", x = "Age", y = "S(x)") +
+    theme_minimal()
+p1 + p2
+
+@
+
+
+<<echo=TRUE, results=tex>>=
+# Given values
+mu_30 <- 0.00013
+mu_50 <- 0.000344
+
+# Solve for C using ratio: mu(50) / mu(30) = (C^50) / (C^30) = C^20
+C <- (mu_50 / mu_30)^(1 / 20)
+
+# Solve for A using mu(30) = A * C^30
+A <- mu_30 / (C^30)
+
+cat("Estimated Parameters:\nA =", A, "\nC =", C, "\n")
+
+# Survival function S(x)
+S <- function(x) {
+  exp((A / log(C)) * (1 - C^x))
+}
+
+# (b) Calculate 30p20 = S(30) / S(20)
+prob_30p20 <- S(30) / S(20)
+cat("30p20 =", prob_30p20, "\n")
+
+# (c) Generate 1000 lifetimes using inverse transform sampling
+u <- runif(1000)
+x <- log(1-((log(C)/A)*log(1-u))) / log(C)
+
+# Plot survival and hazard functions
+library(ggplot2)
+
+hazard_vals <- A * C^(x)
+survival_vals <- S(x)
+
+df <- data.frame(x = x, hazard = hazard_vals, survival = survival_vals)
+
+# Plotting
+p1 <- ggplot(df, aes(x = x, y = hazard)) +
+  geom_line(color = "red") +
+  labs(title = "Hazard Function μ(x)", y = "μ(x)")
+
+p2 <- ggplot(df, aes(x = x, y = survival)) +
+  geom_line(color = "blue") +
+  labs(title = "Survival Function S(x)", y = "S(x)")
+
+print(p1)
+print(p2)
+@
+
+
+
+
+
+
+\end{document}
